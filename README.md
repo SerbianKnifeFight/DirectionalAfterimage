@@ -8,5 +8,9 @@ Requires enough pre-roll (frames before the current one) for Echo Count × Delay
 Built against the standard AE SmartFX SDK (PF_Cmd_SMART_PRE_RENDER / PF_Cmd_SMART_RENDER); the legacy PF_Cmd_RENDER path is a no-op
 
 
-<img width="718" height="403" alt="image" src="https://github.com/user-attachments/assets/0e512ced-daf9-40d5-bf2b-829e821a16d8" />
+
+
+https://github.com/user-attachments/assets/a887d565-f171-4be1-b849-c59589f8c9d5
+
+
 
