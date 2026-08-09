@@ -10,7 +10,11 @@ Built against the standard AE SmartFX SDK (PF_Cmd_SMART_PRE_RENDER / PF_Cmd_SMAR
 
 
 
-https://github.com/user-attachments/assets/a887d565-f171-4be1-b849-c59589f8c9d5
+
+
+https://github.com/user-attachments/assets/d499b8b0-d0fb-42b9-844b-5995375f7602
+
+
 
 
 
