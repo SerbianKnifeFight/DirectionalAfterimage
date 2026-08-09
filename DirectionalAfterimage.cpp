@@ -1,7 +1,3 @@
-/*
-    Directional Afterimage
-*/
-
 #include "DirectionalAfterimage.h"
 
 #include "AE_Effect.h"
@@ -11,11 +7,28 @@
 
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define DAI_CURRENT_CHECKOUT_ID 1000
 
 #define DAI_ECHO_CHECKOUT_ID(dir, index) \
     (2000 + ((dir) * MAX_ECHOES) + ((index) - 1))
+
+struct DAI_PreRenderData
+{
+    PF_LRect output_rect;
+    PF_LRect current_rect;
+    PF_LRect echo_rect[2][MAX_ECHOES];
+};
+
+static void DeletePreRenderData(
+    void* pre_render_data)
+{
+    if (pre_render_data)
+    {
+        free(pre_render_data);
+    }
+}
 
 // settings
 
@@ -39,7 +52,6 @@ struct DAI_Settings
 };
 
 // parameters
-
 static PF_Err ReadSettings(
     PF_InData* in_data,
     DAI_Settings* s)
@@ -47,7 +59,7 @@ static PF_Err ReadSettings(
     PF_Err err = PF_Err_NONE;
     PF_ParamDef p;
 
-    // direction
+    // Direction
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -61,7 +73,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // echo count
+    // Echo count
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -75,7 +87,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // delay
+    // Delay
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -89,7 +101,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // drift distance
+    // Drift distance
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -103,7 +115,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // decay
+    // Decay
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -117,7 +129,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // bidirectional
+    // Bidirectional
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -131,7 +143,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // fade curve
+    // Fade curve
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -145,7 +157,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // blend mode
+    // Blend mode
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -159,7 +171,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // trail opacity
+    // Trail opacity
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -174,7 +186,7 @@ static PF_Err ReadSettings(
 
     PF_CHECKIN_PARAM(in_data, &p);
 
-    // hide original
+    // Hide original
     AEFX_CLR_STRUCT(p);
     ERR(PF_CHECKOUT_PARAM(
         in_data,
@@ -190,6 +202,8 @@ static PF_Err ReadSettings(
 
     return err;
 }
+
+// echo opacity
 
 static PF_FpLong EchoOpacity(
     const DAI_Settings& s,
@@ -228,6 +242,8 @@ static PF_FpLong EchoOpacity(
 
     return opacity;
 }
+
+// clear
 
 template <typename PixelT>
 static void ClearWorldT(
@@ -355,10 +371,6 @@ static void CompositeTranslatedT(
 
             if (a <= 0.0)
                 continue;
-
-            /*
-                normal alpha-over
-            */
 
             PF_FpLong inv_a =
                 1.0 - a;
@@ -515,9 +527,7 @@ static PF_Err CompositeTranslated(
 
     return PF_Err_NONE;
 }
-
-// global setup
-
+//gloalb
 static PF_Err GlobalSetup(
     PF_InData* in_data,
     PF_OutData* out_data,
@@ -545,7 +555,7 @@ static PF_Err GlobalSetup(
     return PF_Err_NONE;
 }
 
-// parameter setup
+// parameters
 
 static PF_Err ParamsSetup(
     PF_InData* in_data,
@@ -680,6 +690,8 @@ static PF_Err PreRender(
 
     PF_CheckoutResult result;
 
+    // current frame
+
     AEFX_CLR_STRUCT(result);
 
     ERR(extra->cb->checkout_layer(
@@ -694,6 +706,21 @@ static PF_Err PreRender(
 
     if (err)
         return err;
+
+    DAI_PreRenderData* pr_data =
+        reinterpret_cast<DAI_PreRenderData*>(
+            malloc(sizeof(DAI_PreRenderData)));
+
+    if (!pr_data)
+        return PF_Err_OUT_OF_MEMORY;
+
+    memset(
+        pr_data,
+        0,
+        sizeof(DAI_PreRenderData));
+
+    pr_data->current_rect =
+        result.result_rect;
 
     extra->output->result_rect =
         result.result_rect;
@@ -735,6 +762,9 @@ static PF_Err PreRender(
             if (err)
                 return err;
 
+            pr_data->echo_rect[d][i - 1] =
+                result.result_rect;
+
             PF_LRect expanded =
                 result.max_result_rect;
 
@@ -750,6 +780,12 @@ static PF_Err PreRender(
             expanded.top -= max_drift;
             expanded.bottom += max_drift;
 
+            /*
+                result_rect must never exceed the rect AE actually
+                requested (request.rect). max_result_rect, on the
+                other hand, is allowed to be larger it describes
+                the maximum area this effect could ever need.
+            */
 
             PF_LRect clipped =
                 expanded;
@@ -840,11 +876,17 @@ static PF_Err PreRender(
         }
     }
 
+    pr_data->output_rect =
+        extra->output->result_rect;
+
     extra->output->solid = 0;
-    extra->output->pre_render_data = NULL;
+    extra->output->pre_render_data = pr_data;
+    extra->output->delete_pre_render_data_func = DeletePreRenderData;
 
     return err;
 }
+
+// smartrender
 
 static PF_Err SmartRender(
     PF_InData* in_data,
@@ -862,13 +904,20 @@ static PF_Err SmartRender(
     if (err)
         return err;
 
+    DAI_PreRenderData* pr_data =
+        reinterpret_cast<DAI_PreRenderData*>(
+            extra->input->pre_render_data);
+
+    if (!pr_data)
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
+
     PF_EffectWorld* current_world =
         NULL;
 
     PF_EffectWorld* echo_worlds
         [2][MAX_ECHOES];
 
-    // array
+    // initialize array
     for (A_long d = 0;
         d < 2;
         ++d)
@@ -936,7 +985,7 @@ static PF_Err SmartRender(
     if (err)
         return err;
 
-    // Direction vector.
+    // direction vector
 
     PF_FpLong radians =
         s.angle_deg *
@@ -949,7 +998,7 @@ static PF_Err SmartRender(
     PF_FpLong base_dy =
         sin(radians);
 
-    // ECHOES
+    // echoes
 
     for (A_long d = 0;
         d < directions;
@@ -986,7 +1035,6 @@ static PF_Err SmartRender(
             if (opacity <= 0.0)
                 continue;
 
-
             PF_FpLong exact_x =
                 dx *
                 s.drift_distance *
@@ -1019,11 +1067,24 @@ static PF_Err SmartRender(
                 (A_long)ceil(
                     exact_y - 0.5);
 
+            const PF_LRect& echo_rect =
+                pr_data->echo_rect[d][i - 1];
+
+            A_long corrected_offset_x =
+                offset_x +
+                (echo_rect.left -
+                    pr_data->output_rect.left);
+
+            A_long corrected_offset_y =
+                offset_y +
+                (echo_rect.top -
+                    pr_data->output_rect.top);
+
             ERR(CompositeTranslated(
                 echo,
                 output_world,
-                offset_x,
-                offset_y,
+                corrected_offset_x,
+                corrected_offset_y,
                 opacity));
 
             if (err)
@@ -1034,11 +1095,19 @@ static PF_Err SmartRender(
     if (!s.hide_original &&
         current_world)
     {
+        A_long current_offset_x =
+            pr_data->current_rect.left -
+            pr_data->output_rect.left;
+
+        A_long current_offset_y =
+            pr_data->current_rect.top -
+            pr_data->output_rect.top;
+
         ERR(CompositeTranslated(
             current_world,
             output_world,
-            0,
-            0,
+            current_offset_x,
+            current_offset_y,
             1.0));
 
         if (err)
@@ -1048,16 +1117,13 @@ static PF_Err SmartRender(
     return PF_Err_NONE;
 }
 
-// -----------------------------------------------------------------------------
-// Legacy render
-// -----------------------------------------------------------------------------
-
 static PF_Err Render(
     PF_InData* in_data,
     PF_OutData* out_data,
     PF_ParamDef* [],
     PF_LayerDef* output)
 {
+
     return PF_Err_NONE;
 }
 
